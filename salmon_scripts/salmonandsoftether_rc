@@ -1,0 +1,163 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          salmonandsoftether
+# Required-Start:    $local_fs $network $named $time $syslog
+# Required-Stop:     $local_fs $network $named $time $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: SoftEther VPN server plus Project Salmon VPN server wrapper
+# Description:       salmond runs and monitors a SoftEther VPN server,
+#                    occasionally reporting to the Salmon directory server
+#                    at salmon.cs.illinois.edu
+### END INIT INFO
+
+#Copyright 2015 The Salmon Censorship Circumvention Project
+
+#This file is part of the Salmon Server (GNU/Linux).
+
+#The Salmon Server (GNU/Linux) is free software; you can redistribute it and / or
+#modify it under the terms of the GNU General Public License as published by
+#the Free Software Foundation; either version 3 of the License, or
+#(at your option) any later version.
+
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#GNU General Public License for more details.
+
+#The full text of the license can be found at:
+#http://www.gnu.org/licenses/gpl.html
+
+SOFTETHER=/usr/local/vpnserver/vpnserver
+LOCK=/var/lib/salmon/salmonlock
+SALMON=/usr/local/vpnserver/salmond
+baseTapIP=`cat /var/lib/salmon/tapIP | sed 's/\s//g'`
+tapIP="$baseTapIP.1"
+useSecureNAT=`cat /var/lib/salmon/softetherSecureNAT | sed 's/\s//g'`
+
+if [ ! -x $SOFTETHER ] ; then
+  echo "Fatal error! $SOFTETHER does not exist as a file that I can execute." >&2
+  exit 1
+fi
+if [ ! -x $SALMON ] ; then
+  echo "Fatal error! $SALMON does not exist as a file that I can execute." >&2
+  exit 1
+fi
+
+
+
+
+setiptablenatrules() {
+
+  modprobe ip_tables
+  modprobe iptable_nat
+  ifconfig tap_salmontap $tapIP up
+
+  #get the for realsies outgoing interface
+  theOutgoingIF=`ip route get 8.8.8.8 | head -n 1 | sed 's/^.*\sdev\s*//' | sed 's/\s.*//'`
+
+  #check if the iptables rules are in there yet, add them if not.
+  checkGrepMasq=`iptables -t nat --list -n | grep 'salmon masq commentguard jcychwkvflrb'`
+  if [ -z "$checkGrepMasq" ] ; then
+    iptables -t nat -A POSTROUTING -o $theOutgoingIF -j MASQUERADE -m comment --comment "salmon masq commentguard jcychwkvflrb "
+  fi
+
+  checkGrepFwdIn=`iptables --list -n | grep 'salmon fwdin commentguard jcychwkvflrb'`
+  if [ -z "$checkGrepFwdIn" ] ; then
+    iptables -A FORWARD -i $theOutgoingIF -o tap_salmontap -m state --state RELATED,ESTABLISHED -j ACCEPT -m comment --comment "salmon fwdin commentguard jcychwkvflrb "
+  fi
+
+  checkGrepFwdOut=`iptables --list -n | grep 'salmon fwdout commentguard jcychwkvflrb'`
+  if [ -z "$checkGrepFwdOut" ] ; then
+    iptables -A FORWARD -i tap_salmontap -o $theOutgoingIF -j ACCEPT -m comment --comment "salmon fwdout commentguard jcychwkvflrb "
+  fi
+}
+
+
+
+start() {
+  if [ -f $LOCK ] && killall -0 salmond; then
+    echo 'salmonandsoftether service already running' >&2
+    return 1
+  fi
+  echo 'Starting SoftEther...' >&2
+  $SOFTETHER start
+  sleep 2  
+  
+  if [ "$useSecureNAT" != "yes" ] ; then
+    setiptablenatrules
+  fi
+
+  echo 'Starting salmond...' >&2
+  $SALMON
+  touch "$LOCK"
+  
+  bwLimit=`cat /var/lib/salmon/salmon_settings | head -n 1 | tr -d '\n'`
+  tc qdisc del dev tap_salmontap root 2>/dev/null
+  tc qdisc add dev tap_salmontap root tbf rate ${bwLimit}kbps burst 1mb latency 50ms
+  
+  echo 'salmonandsoftether service started' >&2
+}
+
+
+
+
+ 
+stop() {
+  if [ ! -f "$LOCK" ] || ! killall -0 salmond; then
+    echo 'salmonandsoftether service does not seem to be running, will try to stop anyways' >&2
+  fi
+  $SOFTETHER stop
+  killall -15 salmond
+  rm -f "$LOCK"
+  if [ "$useSecureNAT" != "yes" ] ; then
+    ifconfig tap_salmontap down
+  fi
+  echo 'salmonandsoftether service stopped' >&2
+}
+
+
+
+
+
+
+restart() {
+  $SOFTETHER stop
+  killall -15 salmond
+  rm -f "$LOCK"
+  sleep 1
+  echo 'Starting SoftEther...' >&2
+  $SOFTETHER start
+  sleep 2
+  
+  if [ "$useSecureNAT" != "yes" ] ; then
+    setiptablenatrules
+  fi
+  
+  echo 'Starting salmond...' >&2
+  $SALMON
+  touch "$LOCK"
+  
+  bwLimit=`cat /var/lib/salmon/salmon_settings | head -n 1 | tr -d '\n'`
+  tc qdisc del dev tap_salmontap root 2>/dev/null
+  tc qdisc add dev tap_salmontap root tbf rate ${bwLimit}kbps burst 1mb latency 50ms
+  
+  echo 'salmonandsoftether service restarted' >&2
+}
+
+
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    restart
+    ;;
+  *)
+    echo "Usage: service $0 {start|stop|restart}"
+esac
