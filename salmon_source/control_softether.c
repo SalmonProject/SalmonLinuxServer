@@ -27,6 +27,8 @@
 #include "control_softether.h"
 
 
+void ensurePortBlocks(char* hubName);
+
 void ensureHub(char* hubName)
 {
 	//if this is the first time this function has been called, the "hubName" hub won't exist.
@@ -67,6 +69,9 @@ void ensureHub(char* hubName)
 		//(as well as ensure that the next two commands will be applied to a hub that exists.)
 		sleep(2);
 	}
+	
+	//ensures access control rules (only http(s) etc are allowed) have been applied; applies if not
+	ensurePortBlocks(hubName);
 
 	//regardless of whether the hub needed to be created, ensure [chosen NAT method] and DHCP server are on.
 	//NOTE the apparent async nature of vpncmd makes me nervous; i'd rather not rely on the sleep(2) up there.
@@ -285,4 +290,123 @@ BOOL verifyUserAccount(const char* userAccount)
 	free(lineGetter);
 	
 	return accountIsThere;
+}
+
+
+
+
+
+
+
+
+
+
+//ensures access control rules (only http(s) etc are allowed) have been applied; applies if not
+void ensurePortBlocks(char* hubName)
+{
+	char toExec[EXEC_VPNCMD_BUFSIZE];
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accesslist",
+		   hubName, gAdminPass);
+	FILE* accessLister = popen(toExec, "r");
+	if(!accessLister)
+	{
+		logError("Could not run accesslist on SoftEther.");
+		return;
+	}
+
+	size_t lineGetterLen = 200;
+	char* lineGetter = malloc(lineGetterLen);
+	memset(lineGetter, 0, lineGetterLen);
+	while(getline(&lineGetter, &lineGetterLen, accessLister) > 0)
+	{
+		if(strstr(lineGetter, "zzzsalmondefaultdropzzz"))
+		{
+			pclose(accessLister);
+			free(lineGetter);
+			return;
+		}
+	}
+	pclose(accessLister);
+	free(lineGetter);
+	
+	
+	//
+	//If we reach here, the zzzsalmondefaultdropzzz rule isn't present; we assume they all need to be added.
+	//
+	
+	
+	//NOTE Lower number = higher priority. I have set HTTP(S) and DNS to be higher priority than the
+	//rest: having the most popular rules at the top of the list ought to be more efficient.
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:dns /priority:1 /srcip:%s.0/24 /protocol:0 /destport:53 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:http /priority:1 /srcip:%s.0/24 /protocol:tcp /destport:80 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:https /priority:1 /srcip:%s.0/24 /protocol:tcp /destport:443 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	sleep(1); //softether vpncmd appears to be finnicky about adding so many rules at once
+	
+	
+	
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:ftpssh /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:20-22 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:kerberos /priority:2 /srcip:%s.0/24 /protocol:0 /destport:88 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	sleep(1); //softether vpncmd appears to be finnicky about adding so many rules at once
+	
+	
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:viber /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:5242 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:viber /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:4244 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:viber /priority:2 /srcip:%s.0/24 /protocol:udp /destport:5243 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	sleep(1); //softether vpncmd appears to be finnicky about adding so many rules at once
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:viber /priority:2 /srcip:%s.0/24 /protocol:udp /destport:9785 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:yahoomessenger /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:5050 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:aim /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:5190 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	sleep(1); //softether vpncmd appears to be finnicky about adding so many rules at once
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:xmpp /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:5222-5223 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:httpalt /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:8008 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd pass /memo:httpalt /priority:2 /srcip:%s.0/24 /protocol:tcp /destport:8080 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /srcport: /tcpstate:",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
+	sleep(2); //softether vpncmd appears to be finnicky about adding so many rules at once
+	
+	
+	
+	
+	sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd accessadd discard /memo:zzzsalmondefaultdropzzz /priority:3 /srcip:%s.0/24 /srcusername: /destusername: /srcmac: /destmac: /destip:0.0.0.0/0 /destport: /srcport: /tcpstate: /protocol:0",
+				hubName, gAdminPass, gTapBaseIP);
+	system(toExec);
 }
