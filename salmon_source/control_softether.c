@@ -84,7 +84,7 @@ void ensureHub(char* hubName)
 		sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd:dhcpenable",
 					hubName, gAdminPass);
 		system(toExec);
-		sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd:dhcpset /START:%s.2 /END:%s.254 /MASK:255.255.255.0 /EXPIRE:7200 /GW:%s.1 /DNS:8.8.8.8 /DNS2:none /DOMAIN:none /LOG:yes",
+		sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd:dhcpset /START:%s.2 /END:%s.254 /MASK:255.255.255.0 /EXPIRE:7200 /GW:%s.1 /DNS:8.8.8.8 /DNS2:8.8.4.4 /DOMAIN:none /LOG:yes",
 					hubName, gAdminPass, gTapBaseIP, gTapBaseIP, gTapBaseIP);
 		system(toExec);
 	}
@@ -99,7 +99,7 @@ void ensureHub(char* hubName)
 		sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd:dhcpenable",
 					hubName, gAdminPass);
 		system(toExec);
-		sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd:dhcpset /START:%s.2 /END:%s.254 /MASK:255.255.255.0 /EXPIRE:7200 /GW:%s.1 /DNS:8.8.8.8 /DNS2:none /DOMAIN:none /LOG:yes",
+		sprintf(toExec, "/usr/local/vpnserver/vpncmd /server localhost /hub:%s /password:%s /cmd:dhcpset /START:%s.2 /END:%s.254 /MASK:255.255.255.0 /EXPIRE:7200 /GW:%s.1 /DNS:8.8.8.8 /DNS2:8.8.4.4 /DOMAIN:none /LOG:yes",
 					hubName, gAdminPass, gTapBaseIP, gTapBaseIP, gTapBaseIP);
 		system(toExec);
 	}

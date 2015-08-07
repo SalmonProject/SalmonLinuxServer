@@ -348,7 +348,7 @@ if [ "$overrideToSoftEtherSecureNAT" != "yes" ] ; then
 		/usr/local/vpnserver/vpncmd /server localhost /hub:salmon /password:$adminPass /cmd dhcpenable
 		#because we're doing our own NAT, the private IP addresses and the default gateway need to agree
 		#with the IP address we are going to be assigning to the tap interface
-		/usr/local/vpnserver/vpncmd /server localhost /hub:salmon /password:$adminPass /cmd dhcpset /START:$baseTapIP.2 /END:$baseTapIP.254 /MASK:255.255.255.0 /EXPIRE:7200 /GW:$baseTapIP.1 /DNS:8.8.8.8 /DNS2:none /DOMAIN:none /LOG:yes
+		/usr/local/vpnserver/vpncmd /server localhost /hub:salmon /password:$adminPass /cmd dhcpset /START:$baseTapIP.2 /END:$baseTapIP.254 /MASK:255.255.255.0 /EXPIRE:7200 /GW:$baseTapIP.1 /DNS:8.8.8.8 /DNS2:8.8.4.4 /DOMAIN:none /LOG:yes
 
 
 		bridgeListOut=`/usr/local/vpnserver/vpncmd /server localhost /password:$adminPass /cmd bridgelist | grep salmontap`
